@@ -1,6 +1,6 @@
 {
-    "name": "cid_holder",
-    "short_name": "cid_holder",
+    "name": "CID Holder",
+    "short_name": "CID Holder",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
