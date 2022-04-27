@@ -31,25 +31,27 @@ class CIDHolder extends StatefulWidget {
 }
 
 class _CIDHolderState extends State<CIDHolder> {
-  MobileScannerController cameraController = MobileScannerController();
+  MobileScannerController cameraController = MobileScannerController(facing: CameraFacing.back);
 
   String _title = 'CID Holder';
 
-  void _onDetect(qrcode, args) {
-    setState(() {
-      if (qrcode.rawValue == null) {
-          debugPrint('Failed to scan qrcode');
-      } else {
-        final String code = qrcode.rawValue!;
-        if (code.startsWith('https://certification.canonical.com/hardware/')) {
-          var parts = code.split('/');
-          _title = 'CID Holder ${parts[4]}';
-          debugPrint('CID found! ${parts[4]}');
-        } else if (!code.isEmpty) {
-          debugPrint('qrcode found! $code');
-        }
+  bool _onDetect(qrcode, args) {
+    if (qrcode.rawValue == null) {
+      debugPrint('Failed to scan qrcode');
+    } else {
+      final String code = qrcode.rawValue!;
+      if (code.startsWith('https://certification.canonical.com/hardware/')) {
+        var parts = code.split('/');
+        setState(() {
+          _title = 'C3 hardware CID: ${parts[4]}';
+        });
+      } else if (!code.isEmpty) {
+        setState(() {
+          _title = 'QR Code: $code';
+        });
       }
-    });
+    }
+    return false;
   }
 
   @override
@@ -57,9 +59,8 @@ class _CIDHolderState extends State<CIDHolder> {
     return Scaffold(
       appBar: AppBar(title: Text('$_title')),
       body: MobileScanner(
-        controller: MobileScannerController(
-          facing: CameraFacing.back,
-          torchEnabled: true),
+        allowDuplicates: false,
+        controller: cameraController,
         onDetect: _onDetect),
     );
   }
