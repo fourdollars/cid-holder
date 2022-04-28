@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
 
+  static const String _title = 'CID Holder';
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'CID Holder',
+      title: _title,
       theme: ThemeData(
         primarySwatch: Colors.blueGrey,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const CIDHolder(title: 'CID Holder'),
+      home: const CIDHolder(title: _title),
     );
   }
 }
@@ -31,11 +31,12 @@ class CIDHolder extends StatefulWidget {
 }
 
 class _CIDHolderState extends State<CIDHolder> {
-  MobileScannerController cameraController = MobileScannerController(facing: CameraFacing.back);
+  var _cameraController = MobileScannerController(facing: CameraFacing.back);
 
   String _title = 'CID Holder';
+  String? _owner;
 
-  bool _onDetect(qrcode, args) {
+  void _onDetect(qrcode, args) {
     if (qrcode.rawValue == null) {
       debugPrint('Failed to scan qrcode');
     } else {
@@ -43,7 +44,11 @@ class _CIDHolderState extends State<CIDHolder> {
       if (code.startsWith('https://certification.canonical.com/hardware/')) {
         var parts = code.split('/');
         setState(() {
-          _title = 'C3 hardware CID: ${parts[4]}';
+          if (_owner == null) {
+            _title = 'C3 hardware CID: ${parts[4]}';
+          } else {
+            _title = 'The CID holder of ${parts[4]} becomes "${_owner}".';
+          }
         });
       } else if (!code.isEmpty) {
         setState(() {
@@ -51,17 +56,39 @@ class _CIDHolderState extends State<CIDHolder> {
         });
       }
     }
-    return false;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('$_title')),
-      body: MobileScanner(
-        allowDuplicates: false,
-        controller: cameraController,
-        onDetect: _onDetect),
+      body: Form(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              flex: 5,
+              child: MobileScanner(
+                allowDuplicates: false,
+                controller: _cameraController,
+                onDetect: _onDetect
+              ),
+            ),
+            TextFormField(
+              decoration: const InputDecoration(
+                hintText: 'Enter your name',
+              ),
+              onChanged: (String? value) {
+                if (value == null || value.isEmpty) {
+                  _owner = null;
+                } else {
+                  _owner = value;
+                }
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
