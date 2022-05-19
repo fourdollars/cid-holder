@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:http/http.dart' as http;
 
 void main() => runApp(const MyApp());
 
