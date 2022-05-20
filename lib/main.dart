@@ -55,12 +55,10 @@ class _CIDHolderState extends State<CIDHolder> {
           var response = http.post(
             Uri.parse('https://pie.dev/post'),
             headers: <String, String>{
-              'Content-Type': 'application/json; charset=UTF-8',
+              'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: jsonEncode(<String, String>{
-              'cid': cid,
-              'name': _owner!,
-            }),
+            encoding: Encoding.getByName('utf-8'),
+            body: {'cid': cid, 'name': _owner!},
           );
           response.then((res) {
             if (res.statusCode == 200) {
