@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(const MyApp());
 
@@ -34,12 +35,25 @@ class CIDHolder extends StatefulWidget {
 }
 
 class _CIDHolderState extends State<CIDHolder> {
-  var _cameraController = MobileScannerController(facing: CameraFacing.back);
-
+  final Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
+  final _cameraController = MobileScannerController(facing: CameraFacing.back);
   String _title = 'CID Holder';
-  String? _owner;
+  late Future<String> _owner;
+  final _form = GlobalKey<FormState>();
 
-  void _onDetect(qrcode, args) {
+  @override
+  void initState() {
+    super.initState();
+    _owner = _prefs.then((SharedPreferences prefs) {
+      return prefs.getString('owner') ?? '';
+    });
+  }
+
+  Future<void> _onDetect(qrcode, args) async {
+    final SharedPreferences prefs = await _prefs;
+    final String owner = (prefs.getString('owner') ?? '');
+//    debugPrint('Get owner ${owner}');
+
     if (qrcode.rawValue == null) {
       debugPrint('Failed to scan qrcode');
     } else {
@@ -47,7 +61,7 @@ class _CIDHolderState extends State<CIDHolder> {
       if (code.startsWith('https://certification.canonical.com/hardware/')) {
         var parts = code.split('/');
         var cid = parts[4];
-        if (_owner == null) {
+        if (owner == null || owner.isEmpty) {
           setState(() {
             _title = 'C3 hardware CID: ${cid}';
           });
@@ -58,12 +72,12 @@ class _CIDHolderState extends State<CIDHolder> {
               'Content-Type': 'application/x-www-form-urlencoded',
             },
             encoding: Encoding.getByName('utf-8'),
-            body: {'cid': cid, 'name': _owner!},
+            body: {'cid': cid, 'name': owner},
           );
           response.then((res) {
             if (res.statusCode == 200) {
               setState(() {
-                _title = 'The CID holder of ${cid} becomes "${_owner}".';
+                _title = 'The CID holder of ${cid} becomes "${owner}".';
               });
             } else {
               setState(() {
@@ -80,11 +94,34 @@ class _CIDHolderState extends State<CIDHolder> {
     }
   }
 
+  Future<void> _onSaved(String? owner) async {
+    final SharedPreferences prefs = await _prefs;
+    if (owner == null) {
+      owner = '';
+    }
+    setState(() {
+      _owner = prefs.setString('owner', owner!).then((bool success) {
+//        debugPrint('Set owner ${owner} ${success}');
+        return owner!;
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('$_title')),
-      body: Form(
+      appBar: AppBar(
+        title: Text('$_title'),
+        actions: <Widget>[
+          IconButton(
+            icon: Icon(Icons.save),
+            onPressed: () {
+              _form.currentState?.save();
+            },
+          ),
+        ],
+      ),
+      body: Center(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -96,17 +133,29 @@ class _CIDHolderState extends State<CIDHolder> {
                 onDetect: _onDetect
               ),
             ),
-            TextFormField(
-              decoration: const InputDecoration(
-                hintText: 'Enter your name',
+            Form(
+              key: _form,
+              child: FutureBuilder<String>(
+                future: _owner,
+                builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
+                  switch (snapshot.connectionState) {
+                    case ConnectionState.waiting:
+                      return const CircularProgressIndicator();
+                    default:
+                      if (snapshot.hasError) {
+                        return Text('Error: ${snapshot.error}');
+                      }
+//                      debugPrint('Initialize owner ${snapshot.data}');
+                      return TextFormField(
+                        decoration: const InputDecoration(
+                          hintText: 'Enter your name',
+                        ),
+                        initialValue: snapshot.data,
+                        onSaved: _onSaved,
+                      );
+                  }
+                },
               ),
-              onChanged: (String? value) {
-                if (value == null || value.isEmpty) {
-                  _owner = null;
-                } else {
-                  _owner = value;
-                }
-              },
             ),
           ],
         ),
