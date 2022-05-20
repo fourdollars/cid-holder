@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:http/http.dart' as http;
@@ -44,13 +46,34 @@ class _CIDHolderState extends State<CIDHolder> {
       final String code = qrcode.rawValue!;
       if (code.startsWith('https://certification.canonical.com/hardware/')) {
         var parts = code.split('/');
-        setState(() {
-          if (_owner == null) {
-            _title = 'C3 hardware CID: ${parts[4]}';
-          } else {
-            _title = 'The CID holder of ${parts[4]} becomes "${_owner}".';
-          }
-        });
+        var cid = parts[4];
+        if (_owner == null) {
+          setState(() {
+            _title = 'C3 hardware CID: ${cid}';
+          });
+        } else {
+          var response = http.post(
+            Uri.parse('https://pie.dev/post'),
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: jsonEncode(<String, String>{
+              'cid': cid,
+              'name': _owner!,
+            }),
+          );
+          response.then((res) {
+            if (res.statusCode == 200) {
+              setState(() {
+                _title = 'The CID holder of ${cid} becomes "${_owner}".';
+              });
+            } else {
+              setState(() {
+                _title = 'Error when changing the CID holder for ${cid}.';
+              });
+            }
+          });
+        }
       } else if (!code.isEmpty) {
         setState(() {
           _title = 'QR Code: $code';
