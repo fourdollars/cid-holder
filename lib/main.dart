@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flash/flash.dart';
 
 void main() => runApp(const MyApp());
 
@@ -45,67 +46,104 @@ class _CIDHolderState extends State<CIDHolder> {
   void initState() {
     super.initState();
     _owner = _prefs.then((SharedPreferences prefs) {
-      return prefs.getString('owner') ?? '';
+      String owner = prefs.getString('owner') ?? '';
+      if (owner.isNotEmpty) {
+        setState(() {
+          _title = 'CID Holder: ${owner}';
+        });
+      }
+      return owner;
     });
   }
 
   Future<void> _onDetect(qrcode, args) async {
     final SharedPreferences prefs = await _prefs;
     final String owner = (prefs.getString('owner') ?? '');
-//    debugPrint('Get owner ${owner}');
 
-    if (qrcode.rawValue == null) {
-      debugPrint('Failed to scan qrcode');
-    } else {
-      final String code = qrcode.rawValue!;
-      if (code.startsWith('https://certification.canonical.com/hardware/')
-          || code.startsWith('https://ubuntu.com/certified/')) {
-        var parts = code.split('/');
-        var cid = parts[4];
-        if (owner == null || owner.isEmpty) {
-          setState(() {
-            _title = 'C3 hardware CID: ${cid}';
-          });
-        } else {
-          var response = http.post(
-            Uri.parse('https://pie.dev/post'),
-            headers: <String, String>{
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            encoding: Encoding.getByName('utf-8'),
-            body: {'cid': cid, 'name': owner},
-          );
-          response.then((res) {
-            if (res.statusCode == 200) {
-              setState(() {
-                _title = 'The CID holder of ${cid} becomes "${owner}".';
-              });
-            } else {
-              setState(() {
-                _title = 'Error when changing the CID holder for ${cid}.';
-              });
-            }
-          });
-        }
-      } else if (!code.isEmpty) {
-        setState(() {
-          _title = 'QR Code: $code';
+    if (qrcode.rawValue == null || qrcode.rawValue.isEmpty) {
+      return;
+    }
+
+    final String code = qrcode.rawValue!;
+
+    if (code.startsWith('https://certification.canonical.com/hardware/')
+        || code.startsWith('https://ubuntu.com/certified/')) {
+      var parts = code.split('/');
+      var cid = parts[4];
+      if (owner == null || owner.isEmpty) {
+        context.showInfoBar(content: Text('C3 hardware CID: ${cid}'));
+      } else {
+        var response = http.post(
+          Uri.parse('https://pie.dev/post'),
+          headers: <String, String>{
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          encoding: Encoding.getByName('utf-8'),
+          body: {'cid': cid, 'name': owner},
+        );
+        response.then((res) {
+          if (res.statusCode == 200) {
+            context.showInfoBar(content: Text('The CID holder of ${cid} becomes "${owner}".'));
+          } else {
+            context.showErrorBar(content: Text('Error when changing the CID holder for ${cid}.'));
+          }
         });
       }
+    } else {
+      context.showErrorBar(content: Text('${code}'));
     }
   }
 
-  Future<void> _onSaved(String? owner) async {
+  Future<void> _showInputFlash({
+    bool persistent = true,
+    WillPopCallback? onWillPop,
+    Color? barrierColor,
+  }) async {
     final SharedPreferences prefs = await _prefs;
-    if (owner == null) {
-      owner = '';
-    }
-    setState(() {
-      _owner = prefs.setString('owner', owner!).then((bool success) {
-//        debugPrint('Set owner ${owner} ${success}');
-        return owner!;
-      });
-    });
+    var editingController = TextEditingController();
+    context.showFlashBar(
+        persistent: persistent,
+        onWillPop: onWillPop,
+        barrierColor: barrierColor,
+        borderWidth: 3,
+        behavior: FlashBehavior.fixed,
+        forwardAnimationCurve: Curves.fastLinearToSlowEaseIn,
+        title: Text('Please input your name'),
+        content: Form(
+            child: TextFormField(
+                controller: editingController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                    hintText: 'CID holder will become your name when it detects the QR codes of CID.',
+                    hintStyle: TextStyle(color: Colors.grey),
+                ),
+            ),
+        ),
+        primaryActionBuilder: (context, controller, _) {
+          return IconButton(
+              onPressed: () {
+                controller.dismiss();
+                String owner = '';
+                if (editingController.text.isNotEmpty) {
+                  owner = editingController.text;
+                }
+                setState(() {
+                  _owner = prefs.setString('owner', owner).then((bool success) {
+                    if (success) {
+                      if (owner.isNotEmpty) {
+                        _title = 'CID Holder: ${owner}';
+                      } else {
+                        _title = 'CID Holder';
+                      }
+                    }
+                    return owner;
+                  });
+                });
+              },
+              icon: Icon(Icons.save),
+              );
+        },
+        );
   }
 
   @override
@@ -115,9 +153,9 @@ class _CIDHolderState extends State<CIDHolder> {
         title: Text('$_title'),
         actions: <Widget>[
           IconButton(
-            icon: Icon(Icons.save),
+            icon: Icon(Icons.settings),
             onPressed: () {
-              _form.currentState?.save();
+              _showInputFlash(barrierColor: Colors.black54);
             },
           ),
         ],
@@ -132,30 +170,6 @@ class _CIDHolderState extends State<CIDHolder> {
                 allowDuplicates: false,
                 controller: _cameraController,
                 onDetect: _onDetect
-              ),
-            ),
-            Form(
-              key: _form,
-              child: FutureBuilder<String>(
-                future: _owner,
-                builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
-                  switch (snapshot.connectionState) {
-                    case ConnectionState.waiting:
-                      return const CircularProgressIndicator();
-                    default:
-                      if (snapshot.hasError) {
-                        return Text('Error: ${snapshot.error}');
-                      }
-//                      debugPrint('Initialize owner ${snapshot.data}');
-                      return TextFormField(
-                        decoration: const InputDecoration(
-                          hintText: 'Enter your name',
-                        ),
-                        initialValue: snapshot.data,
-                        onSaved: _onSaved,
-                      );
-                  }
-                },
               ),
             ),
           ],
