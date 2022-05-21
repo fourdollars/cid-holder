@@ -58,7 +58,8 @@ class _CIDHolderState extends State<CIDHolder> {
       debugPrint('Failed to scan qrcode');
     } else {
       final String code = qrcode.rawValue!;
-      if (code.startsWith('https://certification.canonical.com/hardware/')) {
+      if (code.startsWith('https://certification.canonical.com/hardware/')
+          || code.startsWith('https://ubuntu.com/certified/')) {
         var parts = code.split('/');
         var cid = parts[4];
         if (owner == null || owner.isEmpty) {
