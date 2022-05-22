@@ -83,7 +83,7 @@ class _CIDHolderState extends State<CIDHolder> {
         );
         response.then((res) {
           if (res.statusCode == 200) {
-            context.showInfoBar(content: Text('The CID holder of ${cid} becomes "${owner}".'));
+            context.showSuccessBar(content: Text('The CID holder of ${cid} becomes "${owner}".'));
           } else {
             context.showErrorBar(content: Text('Error when changing the CID holder for ${cid}.'));
           }
