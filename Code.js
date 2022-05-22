@@ -62,6 +62,7 @@ function doPost(e){
 
   if (found == 0) {
     sheet.appendRow([cid, name, date]);
+    sheet.sort(1, false);
   } else {
     sheet.getRange('B'+(found+1)).setValue(name);
     sheet.getRange('C'+(found+1)).setValue(date);
