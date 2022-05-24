@@ -15,14 +15,24 @@ function doGet(e){
     }
   }
   if ('cid' in e.parameter) {
-    for (var i = 0; i < data.length; i++) {
-      if (data[i][0] == e.parameter.cid) {
-        result.push({
-          'cid': data[i][0],
-          'name': data[i][1],
-          'date': data[i][2]
-        });
-        break;
+    if (e.parameter.cid != 'all') {
+      for (var i = 0; i < data.length; i++) {
+        if (data[i][0] == e.parameter.cid) {
+          result.push({
+            'cid': data[i][0],
+            'name': data[i][1],
+            'date': data[i][2]
+          });
+          break;
+        }
+      }
+    } else {
+      for (var i = 1; i < data.length; i++) {
+          result.push({
+            'cid': data[i][0],
+            'name': data[i][1],
+            'date': data[i][2]
+          });
       }
     }
   }
