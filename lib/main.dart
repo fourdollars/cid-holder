@@ -152,11 +152,32 @@ class _CIDHolderState extends State<CIDHolder> {
       appBar: AppBar(
         title: Text('$_title'),
         actions: <Widget>[
-          IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: () {
-              _showInputFlash(barrierColor: Colors.black54);
-            },
+          FutureBuilder<String>(
+              future: _owner,
+              builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
+                switch (snapshot.connectionState) {
+                  case ConnectionState.waiting:
+                    return const CircularProgressIndicator();
+                  default:
+                    if (snapshot.hasError) {
+                      return Text('Error: ${snapshot.error}');
+                    }
+                    if (snapshot.data != null && snapshot.data != '') {
+                      return IconButton(
+                          icon: Icon(Icons.logout),
+                          onPressed: () {
+                            _showInputFlash(barrierColor: Colors.black54);
+                          }
+                      );
+                    }
+                    return IconButton(
+                        icon: Icon(Icons.login),
+                        onPressed: () {
+                          _showInputFlash(barrierColor: Colors.black54);
+                        }
+                    );
+                }
+              },
           ),
         ],
       ),
