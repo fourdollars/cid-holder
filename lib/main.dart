@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:html';
+
 import 'package:flash/flash.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:url_strategy/url_strategy.dart';
 
 void main() {
@@ -43,17 +46,118 @@ class _CIDHolderState extends State<CIDHolder> {
   final _cameraController = MobileScannerController(facing: CameraFacing.back);
   String _title = 'CID Holder';
   late Future<String> _owner;
+  late Future<String> _oauth_token;
+  late Future<String> _oauth_token_secret;
+  late Future<bool> _oauth_token_validated;
   final _form = GlobalKey<FormState>();
+
+  void show_me(SharedPreferences prefs) {
+      String oauth_token = prefs.getString('oauth_token') ?? '';
+      String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
+      bool oauth_token_validated = prefs.getBool('oauth_token_validated') ?? false;
+      var now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
+      var url = Uri.https('api.launchpad.net', '/devel/people/+me', {
+        'OAuth realm': 'https://api.launchpad.net/',
+        'oauth_consumer_key': 'CID Holder (${window.location.href})',
+        'oauth_signature': '&${oauth_token_secret}',
+        'oauth_signature_method': 'PLAINTEXT',
+        'oauth_nonce': '${now.inSeconds}',
+        'oauth_timestamp': '${now.inSeconds}',
+        'oauth_token': oauth_token,
+        'oauth_version': "1.0",
+      });
+      http.get(
+          url,
+          headers: <String, String>{
+            'Accept': 'application/json',
+          },
+      ).then((res) {
+        var payload = jsonDecode(res.body);
+        var name = payload['name'];
+        var disyplay_name = payload['display_name'];
+        String owner = '${disyplay_name} (${name})';
+        setState(() {
+          _owner = prefs.setString('owner', owner).then((bool success) async {
+            if (success) {
+              _title = 'CID Holder: ${owner}';
+              return owner;
+            }
+            return '';
+          });
+        });
+      });
+      return;
+  }
+
+  void auth(SharedPreferences prefs) {
+    String oauth_token = prefs.getString('oauth_token') ?? '';
+    String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
+    bool oauth_token_validated = prefs.getBool('oauth_token_validated') ?? false;
+    http.post(
+        Uri.parse('https://launchpad.net/+access-token'),
+        headers: <String, String>{
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        encoding: Encoding.getByName('utf-8'),
+        body: {
+          'oauth_token': oauth_token,
+          'oauth_consumer_key': 'CID Holder (${window.location.href})',
+          'oauth_signature_method': 'PLAINTEXT',
+          'oauth_signature': '&${oauth_token_secret}',
+        },
+    ).then((res) {
+      switch (res.body) {
+        case 'End-user refused to authorize request token.':
+          break;
+        case 'Request token has not yet been reviewed. Try again later.':
+          break;
+        case 'Invalid OAuth signature.':
+          break;
+        case 'No request token specified.':
+          break;
+        default:
+          final uri = Uri.parse('https://launchpad.net/+authorize-token?${res.body}');
+          String oauth_token = uri.queryParameters['oauth_token'] ?? '';
+          String oauth_token_secret = uri.queryParameters['oauth_token_secret'] ?? '';
+          String lp_context = uri.queryParameters['lp.context'] ?? '';
+          if (oauth_token.isNotEmpty && oauth_token_secret.isNotEmpty && lp_context.isNotEmpty && lp_context == 'None') {
+            _oauth_token = prefs.setString('oauth_token', oauth_token).then((bool success) async {
+              if (success) {
+                return oauth_token;
+              } else {
+                return '';
+              }
+            });
+            _oauth_token_secret = prefs.setString('oauth_token_secret', oauth_token_secret).then((bool success) async {
+              if (success) {
+                return oauth_token_secret;
+              } else {
+                return '';
+              }
+            });
+            _oauth_token_validated = prefs.setBool('oauth_token_validated', true).then((bool success) async {
+              return success;
+            });
+            window.location.reload();
+          }
+      }
+    });
+  }
 
   @override
   void initState() {
     super.initState();
     _owner = _prefs.then((SharedPreferences prefs) {
       String owner = prefs.getString('owner') ?? '';
-      if (owner.isNotEmpty) {
-        setState(() {
-          _title = 'CID Holder: ${owner}';
-        });
+      String oauth_token = prefs.getString('oauth_token') ?? '';
+      String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
+      bool oauth_token_validated = prefs.getBool('oauth_token_validated') ?? false;
+      if (oauth_token.isNotEmpty && oauth_token_secret.isNotEmpty) {
+        if (oauth_token_validated) {
+          show_me(prefs);
+        } else {
+          auth(prefs);
+        }
       }
       return owner;
     });
@@ -97,56 +201,61 @@ class _CIDHolderState extends State<CIDHolder> {
     }
   }
 
-  Future<void> _showInputFlash({
-    bool persistent = true,
-    WillPopCallback? onWillPop,
-    Color? barrierColor,
-  }) async {
+  Future<void> _logout() async {
+    _prefs.then((SharedPreferences prefs) {
+      _owner = prefs.setString('owner', '').then((bool success) async {
+        return '';
+      });
+      _oauth_token = prefs.setString('oauth_token', '').then((bool success) async {
+        return '';
+      });
+      _oauth_token_secret = prefs.setString('oauth_token_secret', '').then((bool success) async {
+        return '';
+      });
+      _oauth_token_validated = prefs.setBool('oauth_token_validated', false).then((bool success) async {
+        return false;
+      });
+      setState(() {
+        _title = 'CID Holder';
+      });
+    });
+  }
+
+  Future<void> _login() async {
     final SharedPreferences prefs = await _prefs;
-    var editingController = TextEditingController();
-    context.showFlashBar(
-        persistent: persistent,
-        onWillPop: onWillPop,
-        barrierColor: barrierColor,
-        borderWidth: 3,
-        behavior: FlashBehavior.fixed,
-        forwardAnimationCurve: Curves.fastLinearToSlowEaseIn,
-        title: Text('Please input your name'),
-        content: Form(
-            child: TextFormField(
-                controller: editingController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                    hintText: 'CID holder will become your name when it detects the QR codes of CID.',
-                    hintStyle: TextStyle(color: Colors.grey),
-                ),
-            ),
-        ),
-        primaryActionBuilder: (context, controller, _) {
-          return IconButton(
-              onPressed: () {
-                controller.dismiss();
-                String owner = '';
-                if (editingController.text.isNotEmpty) {
-                  owner = editingController.text;
-                }
-                setState(() {
-                  _owner = prefs.setString('owner', owner).then((bool success) {
-                    if (success) {
-                      if (owner.isNotEmpty) {
-                        _title = 'CID Holder: ${owner}';
-                      } else {
-                        _title = 'CID Holder';
-                      }
-                    }
-                    return owner;
-                  });
-                });
-              },
-              icon: Icon(Icons.save),
-              );
+    http.post(
+        Uri.parse('https://launchpad.net/+request-token'),
+        headers: <String, String>{
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        );
+        encoding: Encoding.getByName('utf-8'),
+        body: {
+          'oauth_consumer_key': 'CID Holder (${window.location.href})',
+          'oauth_signature_method': 'PLAINTEXT',
+          'oauth_signature': '&',
+        }
+    ).then((res) {
+      final uri = Uri.parse('https://launchpad.net/+authorize-token?${res.body}');
+      String oauth_token = uri.queryParameters['oauth_token'] ?? '';
+      String oauth_token_secret = uri.queryParameters['oauth_token_secret'] ?? '';
+      if (oauth_token.isEmpty || oauth_token_secret.isEmpty) {
+        return;
+      }
+      _oauth_token = prefs.setString('oauth_token', oauth_token).then((bool success) async {
+        if (success) {
+          return oauth_token;
+        }
+        return '';
+      });
+      _oauth_token_secret = prefs.setString('oauth_token_secret', oauth_token_secret).then((bool success) async {
+        if (success) {
+          return oauth_token_secret;
+        }
+        return '';
+      });
+      final auth = Uri.parse('https://launchpad.net/+authorize-token?oauth_token=${oauth_token}&allow_permission=READ_PUBLIC&oauth_callback=${window.location.href}');
+      launchUrl(auth, webOnlyWindowName: '_self');
+    });
   }
 
   @override
@@ -168,16 +277,12 @@ class _CIDHolderState extends State<CIDHolder> {
                     if (snapshot.data != null && snapshot.data != '') {
                       return IconButton(
                           icon: Icon(Icons.logout),
-                          onPressed: () {
-                            _showInputFlash(barrierColor: Colors.black54);
-                          }
+                          onPressed: _logout,
                       );
                     }
                     return IconButton(
                         icon: Icon(Icons.login),
-                        onPressed: () {
-                          _showInputFlash(barrierColor: Colors.black54);
-                        }
+                        onPressed: _login,
                     );
                 }
               },
