@@ -14,6 +14,8 @@ void main() {
   runApp(const MyApp());
 }
 
+const String LAUNCHPAD_URL = 'https://launchpad.net';
+
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
 
@@ -94,7 +96,7 @@ class _CIDHolderState extends State<CIDHolder> {
     String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
     bool oauth_token_validated = prefs.getBool('oauth_token_validated') ?? false;
     http.post(
-        Uri.parse('https://launchpad.net/+access-token'),
+        Uri.parse('${LAUNCHPAD_URL}/+access-token'),
         headers: <String, String>{
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -116,7 +118,7 @@ class _CIDHolderState extends State<CIDHolder> {
         case 'No request token specified.':
           break;
         default:
-          final uri = Uri.parse('https://launchpad.net/+authorize-token?${res.body}');
+          final uri = Uri.parse('${LAUNCHPAD_URL}/+authorize-token?${res.body}');
           String oauth_token = uri.queryParameters['oauth_token'] ?? '';
           String oauth_token_secret = uri.queryParameters['oauth_token_secret'] ?? '';
           String lp_context = uri.queryParameters['lp.context'] ?? '';
@@ -224,7 +226,7 @@ class _CIDHolderState extends State<CIDHolder> {
   Future<void> _login() async {
     final SharedPreferences prefs = await _prefs;
     http.post(
-        Uri.parse('https://launchpad.net/+request-token'),
+        Uri.parse('${LAUNCHPAD_URL}/+request-token'),
         headers: <String, String>{
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -235,7 +237,7 @@ class _CIDHolderState extends State<CIDHolder> {
           'oauth_signature': '&',
         }
     ).then((res) {
-      final uri = Uri.parse('https://launchpad.net/+authorize-token?${res.body}');
+      final uri = Uri.parse('${LAUNCHPAD_URL}/+authorize-token?${res.body}');
       String oauth_token = uri.queryParameters['oauth_token'] ?? '';
       String oauth_token_secret = uri.queryParameters['oauth_token_secret'] ?? '';
       if (oauth_token.isEmpty || oauth_token_secret.isEmpty) {
@@ -253,7 +255,7 @@ class _CIDHolderState extends State<CIDHolder> {
         }
         return '';
       });
-      final auth = Uri.parse('https://launchpad.net/+authorize-token?oauth_token=${oauth_token}&allow_permission=READ_PUBLIC&oauth_callback=${window.location.href}');
+      final auth = Uri.parse('${LAUNCHPAD_URL}/+authorize-token?oauth_token=${oauth_token}&allow_permission=READ_PUBLIC&oauth_callback=${window.location.href}');
       launchUrl(auth, webOnlyWindowName: '_self');
     });
   }
