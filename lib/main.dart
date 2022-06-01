@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:html';
+import 'dart:io';
 
 import 'package:flash/flash.dart';
 import 'package:flutter/material.dart';
@@ -58,20 +59,20 @@ class _CIDHolderState extends State<CIDHolder> {
       String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
       bool oauth_token_validated = prefs.getBool('oauth_token_validated') ?? false;
       var now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
-      var url = Uri.https('api.launchpad.net', '/devel/people/+me', {
-        'OAuth realm': 'https://api.launchpad.net/',
-        'oauth_consumer_key': 'CID Holder (${window.location.href})',
-        'oauth_signature': '&${oauth_token_secret}',
-        'oauth_signature_method': 'PLAINTEXT',
-        'oauth_nonce': '${now.inSeconds}',
-        'oauth_timestamp': '${now.inSeconds}',
-        'oauth_token': oauth_token,
-        'oauth_version': "1.0",
-      });
+      var url = Uri.https('api.launchpad.net', 'devel/people/+me');
       http.get(
           url,
           headers: <String, String>{
             'Accept': 'application/json',
+            HttpHeaders.authorizationHeader:
+                'OAuth realm="https://api.launchpad.net/",' +
+                'oauth_consumer_key="CID Holder (${window.location.href})",' +
+                'oauth_signature="&${oauth_token_secret}",' +
+                'oauth_signature_method="PLAINTEXT",' +
+                'oauth_nonce="${now.inSeconds}",' +
+                'oauth_timestamp="${now.inSeconds}",' +
+                'oauth_token="${oauth_token}",' +
+                'oauth_version="1.0"',
           },
       ).then((res) {
         var payload = jsonDecode(res.body);
