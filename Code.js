@@ -42,16 +42,23 @@ function doGet(e){
 function doPost(e){
   var name = null;
   var cid = null;
-
   if (e.postData.type == 'application/x-www-form-urlencoded') {
-    name = e.parameter.name;
     cid = e.parameter.cid;
+    oauth_consumer_key = e.parameter.oauth_consumer_key;
+    oauth_token = e.parameter.oauth_token;
+    oauth_token_secret = e.parameter.oauth_token_secret;
   } else if (e.postData.type == 'application/json') {
-    var json = JSON.parse(e.postData.contents);
-    name = json.name;
-    cid = json.cid;
+    var payload = JSON.parse(e.postData.contents);
+    cid = payload.cid;
+    oauth_consumer_key = payload.oauth_consumer_key;
+    oauth_token = payload.oauth_token;
+    oauth_token_secret = payload.oauth_token_secret;
   } else {
     return handleResponse(e);
+  }
+
+  if (validate_membership(oauth_consumer_key, oauth_token, oauth_token_secret)) {
+    name = get_identity(oauth_consumer_key, oauth_token, oauth_token_secret);
   }
 
   if (!cid || !name) {
@@ -91,4 +98,38 @@ function handleResponse(e) {
   var json = JSON.stringify(e)
   var textOutput = ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
   return textOutput
+}
+
+function lp_get_api(url, oauth_consumer_key, oauth_token, oauth_token_secret) {
+  var options = {
+    'headers': {
+      'Authorization': 'OAuth realm="https://api.launchpad.net/",' +
+      'oauth_consumer_key="' + oauth_consumer_key + '",' +
+      'oauth_signature="&' + oauth_token_secret + '",' +
+      'oauth_signature_method="PLAINTEXT",' +
+      'oauth_nonce="' + Math.floor(Math.random() * new Date()) +'",' +
+      'oauth_timestamp="' + Math.floor(new Date() / 1000) + '",' +
+      'oauth_token="' + oauth_token + '",' +
+      'oauth_version="1.0"'
+    },
+  }
+  var response = UrlFetchApp.fetch(url, options);
+  var result = response.getContentText();
+  return JSON.parse(result);
+}
+
+function validate_membership(oauth_consumer_key, oauth_token, oauth_token_secret) {
+  var person = lp_get_api('https://api.launchpad.net/devel/people/+me', oauth_consumer_key, oauth_token, oauth_token_secret);
+  var payload = lp_get_api(person.memberships_details_collection_link, oauth_consumer_key, oauth_token, oauth_token_secret);
+  for (entry of payload.entries) {
+    if (entry.team_link == 'https://api.launchpad.net/devel/~canonical') {
+      return true;
+    }
+  }
+  return false;
+}
+
+function get_identity(oauth_consumer_key, oauth_token, oauth_token_secret) {
+  var payload = lp_get_api('https://api.launchpad.net/devel/people/+me', oauth_consumer_key, oauth_token, oauth_token_secret);
+  return payload.display_name + ' (' + payload.name + ')';
 }
