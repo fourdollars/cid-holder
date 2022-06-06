@@ -169,6 +169,8 @@ class _CIDHolderState extends State<CIDHolder> {
   Future<void> _onDetect(qrcode, args) async {
     final SharedPreferences prefs = await _prefs;
     final String owner = (prefs.getString('owner') ?? '');
+    final String oauth_token = (prefs.getString('oauth_token') ?? '');
+    final String oauth_token_secret = (prefs.getString('oauth_token_secret') ?? '');
 
     if (qrcode.rawValue == null || qrcode.rawValue.isEmpty) {
       return;
@@ -189,7 +191,12 @@ class _CIDHolderState extends State<CIDHolder> {
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           encoding: Encoding.getByName('utf-8'),
-          body: {'cid': cid, 'name': owner},
+          body: {
+            'cid': cid,
+            'oauth_consumer_key': 'CID Holder (${window.location.href})',
+            'oauth_token': oauth_token,
+            'oauth_token_secret': oauth_token_secret,
+          },
         );
         response.then((res) {
           if (res.statusCode == 200) {
