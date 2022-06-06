@@ -256,7 +256,7 @@ class _CIDHolderState extends State<CIDHolder> {
         }
         return '';
       });
-      final auth = Uri.parse('${LAUNCHPAD_URL}/+authorize-token?oauth_token=${oauth_token}&allow_permission=READ_PUBLIC&oauth_callback=${window.location.href}');
+      final auth = Uri.parse('${LAUNCHPAD_URL}/+authorize-token?oauth_token=${oauth_token}&allow_permission=READ_PRIVATE&oauth_callback=${window.location.href}');
       launchUrl(auth, webOnlyWindowName: '_self');
     });
   }
