@@ -57,12 +57,14 @@ function doPost(e){
     return handleResponse(e);
   }
 
-  if (validate_membership(oauth_consumer_key, oauth_token, oauth_token_secret)) {
-    name = get_identity(oauth_consumer_key, oauth_token, oauth_token_secret);
+  var person = get_person(oauth_consumer_key, oauth_token, oauth_token_secret);
+  if (validate_membership(person)) {
+    name = person.display_name + ' (' + person.name + ')';
   }
 
   if (!cid || !name) {
-    return ContentService.createTextOutput('{}').setMimeType(ContentService.MimeType.JSON);
+    Logger.log('Failed with cid: %s, name: %s', cid, name);
+    throw Error("No valid CID or no valid token.");
   }
 
   var sheet = SpreadsheetApp.getActiveSheet();
@@ -118,8 +120,20 @@ function lp_get_api(url, oauth_consumer_key, oauth_token, oauth_token_secret) {
   return JSON.parse(result);
 }
 
-function validate_membership(oauth_consumer_key, oauth_token, oauth_token_secret) {
-  var person = lp_get_api('https://api.launchpad.net/devel/people/+me', oauth_consumer_key, oauth_token, oauth_token_secret);
+function get_person(oauth_consumer_key, oauth_token, oauth_token_secret) {
+  return lp_get_api('https://api.launchpad.net/devel/people/+me', oauth_consumer_key, oauth_token, oauth_token_secret);
+}
+
+function validate_membership(person) {
+  try {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    var oauth_consumer_key = scriptProperties.getProperty('oauth_consumer_key');
+    var oauth_token = scriptProperties.getProperty('oauth_token');
+    var oauth_token_secret = scriptProperties.getProperty('oauth_token_secret');
+  } catch (err) {
+    Logger.log('Failed with error %s', err.message);
+    throw err;
+  }
   var payload = lp_get_api(person.memberships_details_collection_link, oauth_consumer_key, oauth_token, oauth_token_secret);
   for (entry of payload.entries) {
     if (entry.team_link == 'https://api.launchpad.net/devel/~canonical') {
@@ -127,9 +141,4 @@ function validate_membership(oauth_consumer_key, oauth_token, oauth_token_secret
     }
   }
   return false;
-}
-
-function get_identity(oauth_consumer_key, oauth_token, oauth_token_secret) {
-  var payload = lp_get_api('https://api.launchpad.net/devel/people/+me', oauth_consumer_key, oauth_token, oauth_token_secret);
-  return payload.display_name + ' (' + payload.name + ')';
 }
