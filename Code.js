@@ -1,4 +1,4 @@
-function doGet(e){
+function doGet(e) {
   var sheet = SpreadsheetApp.getActiveSheet();
   var data = sheet.getDataRange().getValues();
   var result = [];
@@ -28,18 +28,18 @@ function doGet(e){
       }
     } else {
       for (var i = 1; i < data.length; i++) {
-          result.push({
-            'cid': data[i][0],
-            'name': data[i][1],
-            'date': data[i][2]
-          });
+        result.push({
+          'cid': data[i][0],
+          'name': data[i][1],
+          'date': data[i][2]
+        });
       }
     }
   }
   return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
 }
 
-function doPost(e){
+function doPost(e) {
   var name = null;
   var cid = null;
   if (e.postData.type == 'application/x-www-form-urlencoded') {
@@ -64,7 +64,11 @@ function doPost(e){
 
   if (!cid || !name) {
     Logger.log('Failed with cid: %s, name: %s', cid, name);
-    throw Error("No valid CID or no valid token.");
+    throw Error("Invalid CID or invalid token.");
+  }
+
+  if (!change_c3_holder(cid, person.name)) {
+    throw Error("Error when changing C3 %s holder for %s.", cid, person.name);
   }
 
   var sheet = SpreadsheetApp.getActiveSheet();
@@ -83,8 +87,8 @@ function doPost(e){
     sheet.appendRow([cid, name, date]);
     sheet.sort(1, false);
   } else {
-    sheet.getRange('B'+(found+1)).setValue(name);
-    sheet.getRange('C'+(found+1)).setValue(date);
+    sheet.getRange('B' + (found + 1)).setValue(name);
+    sheet.getRange('C' + (found + 1)).setValue(date);
   }
 
   var result = {
@@ -106,13 +110,13 @@ function lp_get_api(url, oauth_consumer_key, oauth_token, oauth_token_secret) {
   var options = {
     'headers': {
       'Authorization': 'OAuth realm="https://api.launchpad.net/",' +
-      'oauth_consumer_key="' + oauth_consumer_key + '",' +
-      'oauth_signature="&' + oauth_token_secret + '",' +
-      'oauth_signature_method="PLAINTEXT",' +
-      'oauth_nonce="' + Math.floor(Math.random() * new Date()) +'",' +
-      'oauth_timestamp="' + Math.floor(new Date() / 1000) + '",' +
-      'oauth_token="' + oauth_token + '",' +
-      'oauth_version="1.0"'
+        'oauth_consumer_key="' + oauth_consumer_key + '",' +
+        'oauth_signature="&' + oauth_token_secret + '",' +
+        'oauth_signature_method="PLAINTEXT",' +
+        'oauth_nonce="' + Math.floor(Math.random() * new Date()) + '",' +
+        'oauth_timestamp="' + Math.floor(new Date() / 1000) + '",' +
+        'oauth_token="' + oauth_token + '",' +
+        'oauth_version="1.0"'
     },
   }
   var response = UrlFetchApp.fetch(url, options);
@@ -139,6 +143,30 @@ function validate_membership(person) {
     if (entry.team_link == 'https://api.launchpad.net/devel/~canonical') {
       return true;
     }
+  }
+  return false;
+}
+
+function change_c3_holder(cid, lp_name) {
+  try {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    var api_user = scriptProperties.getProperty('API_USER');
+    var api_key = scriptProperties.getProperty('API_KEY');
+  } catch (err) {
+    Logger.log('Failed with error %s', err.message);
+    throw err;
+  }
+  var options = {
+    'method': 'patch',
+    'contentType': 'application/json',
+    'headers': {
+      'Authorization': 'ApiKey ' + api_user + ':' + api_key,
+    },
+    'payload': JSON.stringify({ 'holder': lp_name }),
+  };
+  var response = UrlFetchApp.fetch('https://certification.canonical.com/api/v1/hardware/' + cid + '/inventory/', options);
+  if (response.getResponseCode() == 202) {
+    return true;
   }
   return false;
 }
