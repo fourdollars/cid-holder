@@ -57,17 +57,24 @@ function doGet(e) {
 function doPost(e) {
   var name = null;
   var cid = null;
+  var location = null;
   if (e.postData.type == 'application/x-www-form-urlencoded') {
     cid = e.parameter.cid;
     oauth_consumer_key = e.parameter.oauth_consumer_key;
     oauth_token = e.parameter.oauth_token;
     oauth_token_secret = e.parameter.oauth_token_secret;
+    if ('location' in e.parameter) {
+      location = e.parameter.location;
+    }
   } else if (e.postData.type == 'application/json') {
     var payload = JSON.parse(e.postData.contents);
     cid = payload.cid;
     oauth_consumer_key = payload.oauth_consumer_key;
     oauth_token = payload.oauth_token;
     oauth_token_secret = payload.oauth_token_secret;
+    if ('location' in payload) {
+      location = payload.location;
+    }
   } else {
     return handleResponse(e);
   }
@@ -82,8 +89,14 @@ function doPost(e) {
     throw Error("Invalid CID or invalid token.");
   }
 
-  if (!change_c3_holder(cid, person.name)) {
-    throw Error("Error when changing C3 %s holder for %s.", cid, person.name);
+  if (!change_cid_holder(cid, person.name)) {
+    throw Error("Error when changing CID %s holder to %s.", cid, person.name);
+  }
+
+  if (location !== null) {
+    if (!change_cid_location(cid, location)) {
+      throw Error("Error when changing CID %s location to '%s'.", cid, location);
+    }
   }
 
   var sheet = SpreadsheetApp.getActiveSheet();
@@ -188,7 +201,7 @@ function get_c3_locations() {
   return locations;
 }
 
-function change_c3_holder(cid, lp_name) {
+function change_cid_holder(cid, lp_name) {
   try {
     const scriptProperties = PropertiesService.getScriptProperties();
     var api_user = scriptProperties.getProperty('API_USER');
@@ -204,6 +217,30 @@ function change_c3_holder(cid, lp_name) {
       'Authorization': 'ApiKey ' + api_user + ':' + api_key,
     },
     'payload': JSON.stringify({ 'holder': lp_name }),
+  };
+  var response = UrlFetchApp.fetch('https://certification.canonical.com/api/v1/hardware/' + cid + '/inventory/', options);
+  if (response.getResponseCode() == 202) {
+    return true;
+  }
+  return false;
+}
+
+function change_cid_location(cid, location) {
+  try {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    var api_user = scriptProperties.getProperty('API_USER');
+    var api_key = scriptProperties.getProperty('API_KEY');
+  } catch (err) {
+    Logger.log('Failed with error %s', err.message);
+    throw err;
+  }
+  var options = {
+    'method': 'patch',
+    'contentType': 'application/json',
+    'headers': {
+      'Authorization': 'ApiKey ' + api_user + ':' + api_key,
+    },
+    'payload': JSON.stringify({ 'location': location }),
   };
   var response = UrlFetchApp.fetch('https://certification.canonical.com/api/v1/hardware/' + cid + '/inventory/', options);
   if (response.getResponseCode() == 202) {
