@@ -112,17 +112,24 @@ function doPost(e) {
   }
 
   if (found == 0) {
-    sheet.appendRow([cid, name, date]);
+    sheet.appendRow([cid, name, date, location]);
     sheet.sort(1, false);
   } else {
     sheet.getRange('B' + (found + 1)).setValue(name);
     sheet.getRange('C' + (found + 1)).setValue(date);
+    if (location !== null) {
+      sheet.getRange('D' + (found + 1)).setValue(location);
+    }
   }
 
   var result = {
     'cid': cid,
     'name': name,
     'date': date
+  }
+
+  if (location !== null) {
+    result['location'] = location;
   }
 
   return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
