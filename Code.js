@@ -3,6 +3,21 @@ function doGet(e) {
   var data = sheet.getDataRange().getValues();
   var result = [];
 
+  if ('oauth_consumer_key' in e.parameter && 'oauth_token' in e.parameter && 'oauth_token_secret' in e.parameter) {
+    var person = get_person(e.parameter.oauth_consumer_key, e.parameter.oauth_token, e.parameter.oauth_token_secret);
+    if (!validate_membership(person)) {
+      throw Error('Unauthorized token.');
+    }
+  } else {
+    throw Error('Invalid token.');
+  }
+
+  if ('query' in e.parameter && e.parameter.query == 'locations') {
+    var result = get_c3_locations();
+    result.sort();
+    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+  }
+
   if ('name' in e.parameter) {
     for (var i = 0; i < data.length; i++) {
       if (data[i][1] == e.parameter.name) {
@@ -145,6 +160,32 @@ function validate_membership(person) {
     }
   }
   return false;
+}
+
+function get_c3_locations() {
+  try {
+    const scriptProperties = PropertiesService.getScriptProperties();
+    var api_user = scriptProperties.getProperty('API_USER');
+    var api_key = scriptProperties.getProperty('API_KEY');
+  } catch (err) {
+    Logger.log('Failed with error %s', err.message);
+    throw err;
+  }
+  var options = {
+    'method': 'get',
+    'contentType': 'application/json',
+    'headers': {
+      'Authorization': 'ApiKey ' + api_user + ':' + api_key,
+    },
+  };
+  var response = UrlFetchApp.fetch('https://certification.canonical.com/api/v1/locations/', options);
+  var result = response.getContentText();
+  var payload = JSON.parse(result);
+  var locations = [];
+  for (var item of payload.objects) {
+    locations.push(item.name);
+  }
+  return locations;
 }
 
 function change_c3_holder(cid, lp_name) {
