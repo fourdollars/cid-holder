@@ -205,6 +205,16 @@ function get_c3_locations() {
   for (var item of payload.objects) {
     locations.push(item.name);
   }
+  while (payload.meta.next !== null) {
+    response = UrlFetchApp.fetch('https://certification.canonical.com' + payload.meta.next, options);
+    result = response.getContentText();
+    payload = JSON.parse(result);
+    for (var item of payload.objects) {
+      if (!locations.includes(item)) {
+        locations.push(item.name);
+      }
+    }
+  }
   return locations;
 }
 
