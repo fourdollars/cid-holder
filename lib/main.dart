@@ -228,6 +228,7 @@ class _CIDHolderState extends State<CIDHolder> {
     final String oauth_token = (prefs.getString('oauth_token') ?? '');
     final String oauth_token_secret =
         (prefs.getString('oauth_token_secret') ?? '');
+    String location = (prefs.getString('location') ?? '');
 
     if (qrcode.rawValue == null || qrcode.rawValue.isEmpty) {
       return;
@@ -242,23 +243,34 @@ class _CIDHolderState extends State<CIDHolder> {
       if (owner == null || owner.isEmpty) {
         context.showInfoBar(content: Text('C3 hardware CID: ${cid}'));
       } else {
+        var body = {
+          'cid': cid,
+          'oauth_consumer_key': 'CID Holder (${window.location.href})',
+          'oauth_token': oauth_token,
+          'oauth_token_secret': oauth_token_secret,
+        };
+        if (location.isNotEmpty) {
+          body['location'] = location;
+        }
         var response = http.post(
           Uri.parse(GAS_ENDPOINT),
           headers: <String, String>{
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           encoding: Encoding.getByName('utf-8'),
-          body: {
-            'cid': cid,
-            'oauth_consumer_key': 'CID Holder (${window.location.href})',
-            'oauth_token': oauth_token,
-            'oauth_token_secret': oauth_token_secret,
-          },
+          body: body,
         );
         response.then((res) {
           if (res.statusCode == 200) {
-            context.showSuccessBar(
-                content: Text('The CID holder of ${cid} becomes "${owner}".'));
+            if (location.isEmpty) {
+              context.showSuccessBar(
+                  content:
+                      Text('The CID holder of ${cid} becomes "${owner}".'));
+            } else {
+              context.showSuccessBar(
+                  content: Text(
+                      'The CID holder of ${cid} becomes "${owner}" with the location at $location.'));
+            }
           } else {
             context.showErrorBar(
                 content:
