@@ -50,6 +50,7 @@ class _CIDHolderState extends State<CIDHolder> {
   final Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
   final _cameraController = MobileScannerController(facing: CameraFacing.back);
   String _title = 'CID Holder';
+  late Future<String> _location;
   late Future<List<dynamic>> _locations;
   late Future<String> _owner;
   late Future<String> _oauth_token;
@@ -75,6 +76,7 @@ class _CIDHolderState extends State<CIDHolder> {
   }
 
   void show_me(SharedPreferences prefs) {
+    String location = prefs.getString('location') ?? '';
     String oauth_token = prefs.getString('oauth_token') ?? '';
     String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
     var now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
@@ -101,8 +103,13 @@ class _CIDHolderState extends State<CIDHolder> {
       setState(() {
         _owner = prefs.setString('owner', owner).then((bool success) async {
           if (success) {
-            _title = 'CID Holder: ${owner}';
-            return owner;
+            if (location.isEmpty) {
+              _title = 'CID Holder: ${owner}';
+              return owner;
+            } else {
+              _title = 'CID Holder: ${owner}, Location: ${location}';
+              return owner;
+            }
           }
           return '';
         });
@@ -198,6 +205,9 @@ class _CIDHolderState extends State<CIDHolder> {
       }
       return owner;
     });
+    _location = _prefs.then((SharedPreferences prefs) {
+      return prefs.getString('location') ?? '';
+    });
     _locations = _prefs.then((SharedPreferences prefs) {
       String oauth_token = prefs.getString('oauth_token') ?? '';
       String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
@@ -261,8 +271,26 @@ class _CIDHolderState extends State<CIDHolder> {
     }
   }
 
+  Future<void> _set_location(String location) async {
+    final SharedPreferences prefs = await _prefs;
+    String owner = prefs.getString('owner') ?? '';
+    _location =
+        prefs.setString('location', location).then((bool success) async {
+      if (success) {
+        setState(() {
+          _title = 'CID Holder: ${owner}, Location: ${location}';
+        });
+        return location;
+      }
+      return '';
+    });
+  }
+
   Future<void> _logout() async {
     _prefs.then((SharedPreferences prefs) {
+      _location = prefs.setString('location', '').then((bool success) async {
+        return '';
+      });
       _owner = prefs.setString('owner', '').then((bool success) async {
         return '';
       });
@@ -334,6 +362,34 @@ class _CIDHolderState extends State<CIDHolder> {
       appBar: AppBar(
         title: Text('$_title'),
         actions: <Widget>[
+          FutureBuilder<List<dynamic>>(
+            future: _locations,
+            builder:
+                (BuildContext context, AsyncSnapshot<List<dynamic>> snapshot) {
+              switch (snapshot.connectionState) {
+                case ConnectionState.waiting:
+                  return const CircularProgressIndicator();
+                default:
+                  if (snapshot.hasError) {
+                    return Text('Error: ${snapshot.error}');
+                  }
+                  if (snapshot.hasData && snapshot.data!.length > 0) {
+                    List<PopupMenuItem<String>> locations = [];
+                    snapshot.data!.forEach((location) => locations.add(
+                        PopupMenuItem<String>(
+                            child: Text(location), value: location)));
+                    return PopupMenuButton<String>(
+                      itemBuilder: (context) => locations,
+                      onSelected: (item) => _set_location(item),
+                    );
+                  }
+                  return Visibility(
+                    child: Text("invisible"),
+                    visible: false,
+                  );
+              }
+            },
+          ),
           FutureBuilder<String>(
             future: _owner,
             builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
@@ -353,31 +409,6 @@ class _CIDHolderState extends State<CIDHolder> {
                   return IconButton(
                     icon: Icon(Icons.login),
                     onPressed: _login,
-                  );
-              }
-            },
-          ),
-          FutureBuilder<List<dynamic>>(
-            future: _locations,
-            builder:
-                (BuildContext context, AsyncSnapshot<List<dynamic>> snapshot) {
-              switch (snapshot.connectionState) {
-                case ConnectionState.waiting:
-                  return const CircularProgressIndicator();
-                default:
-                  if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
-                  }
-                  if (snapshot.hasData && snapshot.data!.length > 0) {
-                    List<PopupMenuItem<Text>> locations = [];
-                    snapshot.data!.forEach((location) => locations
-                        .add(PopupMenuItem<Text>(child: Text(location))));
-                    return PopupMenuButton<Text>(
-                        itemBuilder: (context) => locations);
-                  }
-                  return Visibility(
-                    child: Text("Gone"),
-                    visible: false,
                   );
               }
             },
