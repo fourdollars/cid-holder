@@ -16,6 +16,7 @@ void main() {
 }
 
 const String LAUNCHPAD_URL = 'https://launchpad.net';
+const String GAS_ENDPOINT = 'https://pie.dev/post';
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
@@ -31,6 +32,7 @@ class MyApp extends StatelessWidget {
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
       home: const CIDHolder(title: _title),
+//      debugShowCheckedModeBanner: false,
     );
   }
 }
@@ -48,24 +50,41 @@ class _CIDHolderState extends State<CIDHolder> {
   final Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
   final _cameraController = MobileScannerController(facing: CameraFacing.back);
   String _title = 'CID Holder';
+  late Future<List<dynamic>> _locations;
   late Future<String> _owner;
   late Future<String> _oauth_token;
   late Future<String> _oauth_token_secret;
   late Future<bool> _oauth_token_validated;
   final _form = GlobalKey<FormState>();
 
+  Future<List<dynamic>> get_locations(SharedPreferences prefs) async {
+    String oauth_consumer_key = "CID Holder (${window.location.href})";
+    String oauth_token = prefs.getString('oauth_token') ?? '';
+    String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
+    var now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
+    var url = Uri.parse(GAS_ENDPOINT +
+        "?query=locations&oauth_consumer_key=$oauth_consumer_key&oauth_token=$oauth_token&oauth_token_secret=$oauth_token_secret");
+    var res = await http.get(
+      url,
+      headers: <String, String>{
+        'Accept': 'application/json',
+      },
+    );
+    var payload = jsonDecode(res.body);
+    return payload;
+  }
+
   void show_me(SharedPreferences prefs) {
-      String oauth_token = prefs.getString('oauth_token') ?? '';
-      String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
-      bool oauth_token_validated = prefs.getBool('oauth_token_validated') ?? false;
-      var now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
-      var url = Uri.https('api.launchpad.net', 'devel/people/+me');
-      http.get(
-          url,
-          headers: <String, String>{
-            'Accept': 'application/json',
-            HttpHeaders.authorizationHeader:
-                'OAuth realm="https://api.launchpad.net/",' +
+    String oauth_token = prefs.getString('oauth_token') ?? '';
+    String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
+    var now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
+    var url = Uri.https('api.launchpad.net', 'devel/people/+me');
+    http.get(
+      url,
+      headers: <String, String>{
+        'Accept': 'application/json',
+        HttpHeaders.authorizationHeader:
+            'OAuth realm="https://api.launchpad.net/",' +
                 'oauth_consumer_key="CID Holder (${window.location.href})",' +
                 'oauth_signature="&${oauth_token_secret}",' +
                 'oauth_signature_method="PLAINTEXT",' +
@@ -73,42 +92,45 @@ class _CIDHolderState extends State<CIDHolder> {
                 'oauth_timestamp="${now.inSeconds}",' +
                 'oauth_token="${oauth_token}",' +
                 'oauth_version="1.0"',
-          },
-      ).then((res) {
-        var payload = jsonDecode(res.body);
-        var name = payload['name'];
-        var disyplay_name = payload['display_name'];
-        String owner = '${disyplay_name} (${name})';
-        setState(() {
-          _owner = prefs.setString('owner', owner).then((bool success) async {
-            if (success) {
-              _title = 'CID Holder: ${owner}';
-              return owner;
-            }
-            return '';
-          });
+      },
+    ).then((res) {
+      var payload = jsonDecode(res.body);
+      var name = payload['name'];
+      var disyplay_name = payload['display_name'];
+      String owner = '${disyplay_name} (${name})';
+      setState(() {
+        _owner = prefs.setString('owner', owner).then((bool success) async {
+          if (success) {
+            _title = 'CID Holder: ${owner}';
+            return owner;
+          }
+          return '';
         });
       });
-      return;
+    });
+    return;
   }
 
   void auth(SharedPreferences prefs) {
     String oauth_token = prefs.getString('oauth_token') ?? '';
     String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
-    bool oauth_token_validated = prefs.getBool('oauth_token_validated') ?? false;
-    http.post(
-        Uri.parse('${LAUNCHPAD_URL}/+access-token'),
-        headers: <String, String>{
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        encoding: Encoding.getByName('utf-8'),
-        body: {
-          'oauth_token': oauth_token,
-          'oauth_consumer_key': 'CID Holder (${window.location.href})',
-          'oauth_signature_method': 'PLAINTEXT',
-          'oauth_signature': '&${oauth_token_secret}',
-        },
-    ).then((res) {
+    bool oauth_token_validated =
+        prefs.getBool('oauth_token_validated') ?? false;
+    http
+        .post(
+      Uri.parse('${LAUNCHPAD_URL}/+access-token'),
+      headers: <String, String>{
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      encoding: Encoding.getByName('utf-8'),
+      body: {
+        'oauth_token': oauth_token,
+        'oauth_consumer_key': 'CID Holder (${window.location.href})',
+        'oauth_signature_method': 'PLAINTEXT',
+        'oauth_signature': '&${oauth_token_secret}',
+      },
+    )
+        .then((res) {
       switch (res.body) {
         case 'End-user refused to authorize request token.':
           break;
@@ -119,26 +141,37 @@ class _CIDHolderState extends State<CIDHolder> {
         case 'No request token specified.':
           break;
         default:
-          final uri = Uri.parse('${LAUNCHPAD_URL}/+authorize-token?${res.body}');
+          final uri =
+              Uri.parse('${LAUNCHPAD_URL}/+authorize-token?${res.body}');
           String oauth_token = uri.queryParameters['oauth_token'] ?? '';
-          String oauth_token_secret = uri.queryParameters['oauth_token_secret'] ?? '';
+          String oauth_token_secret =
+              uri.queryParameters['oauth_token_secret'] ?? '';
           String lp_context = uri.queryParameters['lp.context'] ?? '';
-          if (oauth_token.isNotEmpty && oauth_token_secret.isNotEmpty && lp_context.isNotEmpty && lp_context == 'None') {
-            _oauth_token = prefs.setString('oauth_token', oauth_token).then((bool success) async {
+          if (oauth_token.isNotEmpty &&
+              oauth_token_secret.isNotEmpty &&
+              lp_context.isNotEmpty &&
+              lp_context == 'None') {
+            _oauth_token = prefs
+                .setString('oauth_token', oauth_token)
+                .then((bool success) async {
               if (success) {
                 return oauth_token;
               } else {
                 return '';
               }
             });
-            _oauth_token_secret = prefs.setString('oauth_token_secret', oauth_token_secret).then((bool success) async {
+            _oauth_token_secret = prefs
+                .setString('oauth_token_secret', oauth_token_secret)
+                .then((bool success) async {
               if (success) {
                 return oauth_token_secret;
               } else {
                 return '';
               }
             });
-            _oauth_token_validated = prefs.setBool('oauth_token_validated', true).then((bool success) async {
+            _oauth_token_validated = prefs
+                .setBool('oauth_token_validated', true)
+                .then((bool success) async {
               return success;
             });
             window.location.reload();
@@ -154,7 +187,8 @@ class _CIDHolderState extends State<CIDHolder> {
       String owner = prefs.getString('owner') ?? '';
       String oauth_token = prefs.getString('oauth_token') ?? '';
       String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
-      bool oauth_token_validated = prefs.getBool('oauth_token_validated') ?? false;
+      bool oauth_token_validated =
+          prefs.getBool('oauth_token_validated') ?? false;
       if (oauth_token.isNotEmpty && oauth_token_secret.isNotEmpty) {
         if (oauth_token_validated) {
           show_me(prefs);
@@ -164,13 +198,26 @@ class _CIDHolderState extends State<CIDHolder> {
       }
       return owner;
     });
+    _locations = _prefs.then((SharedPreferences prefs) {
+      String oauth_token = prefs.getString('oauth_token') ?? '';
+      String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
+      bool oauth_token_validated =
+          prefs.getBool('oauth_token_validated') ?? false;
+      if (oauth_token.isNotEmpty &&
+          oauth_token_secret.isNotEmpty &&
+          oauth_token_validated) {
+        return get_locations(prefs);
+      }
+      return [];
+    });
   }
 
   Future<void> _onDetect(qrcode, args) async {
     final SharedPreferences prefs = await _prefs;
     final String owner = (prefs.getString('owner') ?? '');
     final String oauth_token = (prefs.getString('oauth_token') ?? '');
-    final String oauth_token_secret = (prefs.getString('oauth_token_secret') ?? '');
+    final String oauth_token_secret =
+        (prefs.getString('oauth_token_secret') ?? '');
 
     if (qrcode.rawValue == null || qrcode.rawValue.isEmpty) {
       return;
@@ -178,15 +225,15 @@ class _CIDHolderState extends State<CIDHolder> {
 
     final String code = qrcode.rawValue!;
 
-    if (code.startsWith('https://certification.canonical.com/hardware/')
-        || code.startsWith('https://ubuntu.com/certified/')) {
+    if (code.startsWith('https://certification.canonical.com/hardware/') ||
+        code.startsWith('https://ubuntu.com/certified/')) {
       var parts = code.split('/');
       var cid = parts[4];
       if (owner == null || owner.isEmpty) {
         context.showInfoBar(content: Text('C3 hardware CID: ${cid}'));
       } else {
         var response = http.post(
-          Uri.parse('https://pie.dev/post'),
+          Uri.parse(GAS_ENDPOINT),
           headers: <String, String>{
             'Content-Type': 'application/x-www-form-urlencoded',
           },
@@ -200,9 +247,12 @@ class _CIDHolderState extends State<CIDHolder> {
         );
         response.then((res) {
           if (res.statusCode == 200) {
-            context.showSuccessBar(content: Text('The CID holder of ${cid} becomes "${owner}".'));
+            context.showSuccessBar(
+                content: Text('The CID holder of ${cid} becomes "${owner}".'));
           } else {
-            context.showErrorBar(content: Text('Error when changing the CID holder for ${cid}.'));
+            context.showErrorBar(
+                content:
+                    Text('Error when changing the CID holder for ${cid}.'));
           }
         });
       }
@@ -216,13 +266,17 @@ class _CIDHolderState extends State<CIDHolder> {
       _owner = prefs.setString('owner', '').then((bool success) async {
         return '';
       });
-      _oauth_token = prefs.setString('oauth_token', '').then((bool success) async {
+      _oauth_token =
+          prefs.setString('oauth_token', '').then((bool success) async {
         return '';
       });
-      _oauth_token_secret = prefs.setString('oauth_token_secret', '').then((bool success) async {
+      _oauth_token_secret =
+          prefs.setString('oauth_token_secret', '').then((bool success) async {
         return '';
       });
-      _oauth_token_validated = prefs.setBool('oauth_token_validated', false).then((bool success) async {
+      _oauth_token_validated = prefs
+          .setBool('oauth_token_validated', false)
+          .then((bool success) async {
         return false;
       });
       setState(() {
@@ -233,37 +287,43 @@ class _CIDHolderState extends State<CIDHolder> {
 
   Future<void> _login() async {
     final SharedPreferences prefs = await _prefs;
-    http.post(
-        Uri.parse('${LAUNCHPAD_URL}/+request-token'),
-        headers: <String, String>{
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        encoding: Encoding.getByName('utf-8'),
-        body: {
-          'oauth_consumer_key': 'CID Holder (${window.location.href})',
-          'oauth_signature_method': 'PLAINTEXT',
-          'oauth_signature': '&',
-        }
-    ).then((res) {
+    http
+        .post(Uri.parse('${LAUNCHPAD_URL}/+request-token'),
+            headers: <String, String>{
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            encoding: Encoding.getByName('utf-8'),
+            body: {
+              'oauth_consumer_key': 'CID Holder (${window.location.href})',
+              'oauth_signature_method': 'PLAINTEXT',
+              'oauth_signature': '&',
+            })
+        .then((res) {
       final uri = Uri.parse('${LAUNCHPAD_URL}/+authorize-token?${res.body}');
       String oauth_token = uri.queryParameters['oauth_token'] ?? '';
-      String oauth_token_secret = uri.queryParameters['oauth_token_secret'] ?? '';
+      String oauth_token_secret =
+          uri.queryParameters['oauth_token_secret'] ?? '';
       if (oauth_token.isEmpty || oauth_token_secret.isEmpty) {
         return;
       }
-      _oauth_token = prefs.setString('oauth_token', oauth_token).then((bool success) async {
+      _oauth_token = prefs
+          .setString('oauth_token', oauth_token)
+          .then((bool success) async {
         if (success) {
           return oauth_token;
         }
         return '';
       });
-      _oauth_token_secret = prefs.setString('oauth_token_secret', oauth_token_secret).then((bool success) async {
+      _oauth_token_secret = prefs
+          .setString('oauth_token_secret', oauth_token_secret)
+          .then((bool success) async {
         if (success) {
           return oauth_token_secret;
         }
         return '';
       });
-      final auth = Uri.parse('${LAUNCHPAD_URL}/+authorize-token?oauth_token=${oauth_token}&allow_permission=READ_PUBLIC&oauth_callback=${window.location.href}');
+      final auth = Uri.parse(
+          '${LAUNCHPAD_URL}/+authorize-token?oauth_token=${oauth_token}&allow_permission=READ_PUBLIC&oauth_callback=${window.location.href}');
       launchUrl(auth, webOnlyWindowName: '_self');
     });
   }
@@ -275,27 +335,52 @@ class _CIDHolderState extends State<CIDHolder> {
         title: Text('$_title'),
         actions: <Widget>[
           FutureBuilder<String>(
-              future: _owner,
-              builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
-                switch (snapshot.connectionState) {
-                  case ConnectionState.waiting:
-                    return const CircularProgressIndicator();
-                  default:
-                    if (snapshot.hasError) {
-                      return Text('Error: ${snapshot.error}');
-                    }
-                    if (snapshot.data != null && snapshot.data != '') {
-                      return IconButton(
-                          icon: Icon(Icons.logout),
-                          onPressed: _logout,
-                      );
-                    }
+            future: _owner,
+            builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
+              switch (snapshot.connectionState) {
+                case ConnectionState.waiting:
+                  return const CircularProgressIndicator();
+                default:
+                  if (snapshot.hasError) {
+                    return Text('Error: ${snapshot.error}');
+                  }
+                  if (snapshot.hasData && snapshot.data != '') {
                     return IconButton(
-                        icon: Icon(Icons.login),
-                        onPressed: _login,
+                      icon: Icon(Icons.logout),
+                      onPressed: _logout,
                     );
-                }
-              },
+                  }
+                  return IconButton(
+                    icon: Icon(Icons.login),
+                    onPressed: _login,
+                  );
+              }
+            },
+          ),
+          FutureBuilder<List<dynamic>>(
+            future: _locations,
+            builder:
+                (BuildContext context, AsyncSnapshot<List<dynamic>> snapshot) {
+              switch (snapshot.connectionState) {
+                case ConnectionState.waiting:
+                  return const CircularProgressIndicator();
+                default:
+                  if (snapshot.hasError) {
+                    return Text('Error: ${snapshot.error}');
+                  }
+                  if (snapshot.hasData && snapshot.data!.length > 0) {
+                    List<PopupMenuItem<Text>> locations = [];
+                    snapshot.data!.forEach((location) => locations
+                        .add(PopupMenuItem<Text>(child: Text(location))));
+                    return PopupMenuButton<Text>(
+                        itemBuilder: (context) => locations);
+                  }
+                  return Visibility(
+                    child: Text("Gone"),
+                    visible: false,
+                  );
+              }
+            },
           ),
         ],
       ),
@@ -306,10 +391,9 @@ class _CIDHolderState extends State<CIDHolder> {
             Expanded(
               flex: 5,
               child: MobileScanner(
-                allowDuplicates: false,
-                controller: _cameraController,
-                onDetect: _onDetect
-              ),
+                  allowDuplicates: false,
+                  controller: _cameraController,
+                  onDetect: _onDetect),
             ),
           ],
         ),
