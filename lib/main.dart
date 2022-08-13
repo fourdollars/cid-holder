@@ -394,6 +394,8 @@ class _CIDHolderState extends State<CIDHolder> {
                         PopupMenuItem<String>(
                             child: Text(location), value: location)));
                     return PopupMenuButton<String>(
+                      icon: Icon(Icons.my_location),
+                      tooltip: "My Location",
                       itemBuilder: (context) => locations,
                       onSelected: (item) => _set_location(item),
                     );
@@ -419,11 +421,13 @@ class _CIDHolderState extends State<CIDHolder> {
                     return IconButton(
                       icon: Icon(Icons.logout),
                       onPressed: _logout,
+                      tooltip: "Logout",
                     );
                   }
                   return IconButton(
                     icon: Icon(Icons.login),
                     onPressed: _login,
+                    tooltip: "Login",
                   );
               }
             },
