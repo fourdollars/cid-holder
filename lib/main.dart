@@ -240,44 +240,47 @@ class _CIDHolderState extends State<CIDHolder> {
         code.startsWith('https://ubuntu.com/certified/')) {
       var parts = code.split('/');
       var cid = parts[4];
+
+      context.showInfoBar(content: Text('Detected CID: ${cid}'));
+
       if (owner == null || owner.isEmpty) {
-        context.showInfoBar(content: Text('C3 hardware CID: ${cid}'));
-      } else {
-        var body = {
-          'cid': cid,
-          'oauth_consumer_key': 'CID Holder (${window.location.href})',
-          'oauth_token': oauth_token,
-          'oauth_token_secret': oauth_token_secret,
-        };
-        if (location.isNotEmpty) {
-          body['location'] = location;
-        }
-        var response = http.post(
-          Uri.parse(GAS_ENDPOINT),
-          headers: <String, String>{
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          encoding: Encoding.getByName('utf-8'),
-          body: body,
-        );
-        response.then((res) {
-          if (res.statusCode == 200) {
-            if (location.isEmpty) {
-              context.showSuccessBar(
-                  content:
-                      Text('The CID holder of ${cid} becomes "${owner}".'));
-            } else {
-              context.showSuccessBar(
-                  content: Text(
-                      'The CID holder of ${cid} becomes "${owner}" with the location at $location.'));
-            }
-          } else {
-            context.showErrorBar(
-                content:
-                    Text('Error when changing the CID holder for ${cid}.'));
-          }
-        });
+        return;
       }
+
+      var body = {
+        'cid': cid,
+        'oauth_consumer_key': 'CID Holder (${window.location.href})',
+        'oauth_token': oauth_token,
+        'oauth_token_secret': oauth_token_secret,
+      };
+
+      if (location.isNotEmpty) {
+        body['location'] = location;
+      }
+
+      var response = http.post(
+        Uri.parse(GAS_ENDPOINT),
+        headers: <String, String>{
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        encoding: Encoding.getByName('utf-8'),
+        body: body,
+      );
+      response.then((res) {
+        if (res.statusCode == 200) {
+          if (location.isEmpty) {
+            context.showSuccessBar(
+                content: Text('The CID holder of ${cid} becomes "${owner}".'));
+          } else {
+            context.showSuccessBar(
+                content: Text(
+                    'The CID holder of ${cid} becomes "${owner}" with the location at $location.'));
+          }
+        } else {
+          context.showErrorBar(
+              content: Text('Error when changing the CID holder for ${cid}.'));
+        }
+      });
     } else {
       context.showErrorBar(content: Text('${code}'));
     }
