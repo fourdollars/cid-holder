@@ -15,8 +15,14 @@ void main() {
   runApp(const MyApp());
 }
 
-const String LAUNCHPAD_URL = 'https://launchpad.net';
-const String GAS_ENDPOINT = 'https://pie.dev/post';
+const String LAUNCHPAD_URL = const String.fromEnvironment("LAUNCHPAD_URL",
+    defaultValue: "https://launchpad.net");
+const String LAUNCHPAD_API = const String.fromEnvironment("LAUNCHPAD_API",
+    defaultValue: "api.launchpad.net");
+const String LAUNCHPAD_API_ME = const String.fromEnvironment("LAUNCHPAD_API_ME",
+    defaultValue: "devel/people/+me");
+const String GAS_ENDPOINT = const String.fromEnvironment("GAS_ENDPOINT",
+    defaultValue: "https://pie.dev/post");
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
@@ -80,7 +86,7 @@ class _CIDHolderState extends State<CIDHolder> {
     String oauth_token = prefs.getString('oauth_token') ?? '';
     String oauth_token_secret = prefs.getString('oauth_token_secret') ?? '';
     var now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
-    var url = Uri.https('api.launchpad.net', 'devel/people/+me');
+    var url = Uri.https(LAUNCHPAD_API, LAUNCHPAD_API_ME);
     http.get(
       url,
       headers: <String, String>{

@@ -17,7 +17,7 @@ jobs:
           flutter-version: '3.0.5'
           channel: 'stable'
       - run: flutter pub get
-      - run: flutter build web
+      - run: flutter build web --dart-define=LAUNCHPAD_URL=${{ secrets.LAUNCHPAD_URL}} --dart-define=LAUNCHPAD_API=${{ secrets.LAUNCHPAD_API }} --dart-define=LAUNCHPAD_API_ME=${{ secrets.LAUNCHPAD_API_ME }} --dart-define=GAS_ENDPOINT=${{ secrets.GAS_ENDPOINT }}
       - name: publish
         uses: appleboy/scp-action@master
         with:
